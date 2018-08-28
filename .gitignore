@@ -1,0 +1,6 @@
+data/*
+docs
+**/.ipynb_checkpoints
+**/__pycache__
+**/.pyc
+plotting_utils.egg-info
