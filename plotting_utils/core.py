@@ -1700,3 +1700,63 @@ def plot_errorbars_cox(
         plt.close("all")
 
     return fig_count
+
+
+def plot_knn_network(
+        similarity, data_to_cluster, layout_mode, pos_param,
+        inference_run_id, node_color_settings, saveimg, img_outDir,
+        imgCount_basic, resolution_extention):
+
+    imgCount_basic += 1
+    imgCount = 0
+    # PLOT similarity #
+    myfig = sns.clustermap(
+        similarity.A, col_cluster=True, row_cluster=True,
+        xticklabels=True, yticklabels=True, square=True,
+        cmap='Reds', figsize=(6, 6))
+    if saveimg:
+        imgCount += 1
+        myfig.savefig(
+            (
+                img_outDir+str(imgCount_basic)+'__' +
+                inference_run_id+'__'+str(imgCount)+resolution_extention),
+            transparent=True, bbox_inches='tight',
+            pad_inches=0.1, frameon=False)
+        plt.close('all')
+    else:
+        plt.show()
+
+    # DRAW  NETWORK #
+    text = 'patients'
+    size_const = 2000  # some constant for the nodes size
+    edge_line_width = -5  # some constant for the edges width
+    nodeSize = abs(data_to_cluster).sum(axis=1)  # size
+    nodeSize = nodeSize/nodeSize.max()
+    # nodeColor = patient_grade_group.copy() ## color
+    # nodeCmap = 'cat_cont'
+
+    mytitle = inference_run_id+'_pos_param_'+str(pos_param)
+    for nodeColor, nodeCmap in node_color_settings:
+        myfig, net_pos, G, _ = networkx_draw_network(
+            similarity, nodeSize.values, nodeColor.values,
+            size_const=size_const,
+            which_nodes=None, all_edges=False,
+            layout=layout_mode, specified_pos=None, pos_param=pos_param,
+            myfigsize=(12, 10), mytitle=mytitle, print_node_names=False,
+            font_size=20,
+            node_line_width=1, edge_line_width=edge_line_width,
+            nodeCmap=nodeCmap, nodePalette=cl_palette,
+            mySeed=8)
+        if saveimg:
+            imgCount += 1
+            myfig.savefig(
+                (
+                    img_outDir+str(imgCount_basic)+'__'+inference_run_id +
+                    '__'+str(imgCount)+resolution_extention),
+                transparent=True, bbox_inches='tight',
+                pad_inches=0.1, frameon=False)
+            plt.close('all')
+        else:
+            plt.show()
+
+    return imgCount_basic, imgCount
