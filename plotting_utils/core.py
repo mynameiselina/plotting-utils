@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -11,6 +12,54 @@ from scipy.spatial.distance import pdist, squareform
 from math import ceil
 import logging
 logger = logging.getLogger(__name__)
+
+
+# manually selected colors for different chromosomes
+# the order is given inside fuction networkx_set_nodes()
+# [[125,5,112,19,46,123,78,120,80,87,89,90,33,26,145,65,93,140,76,127,133,52,59]]
+class MyColors:
+    all_colors = np.array([
+        "#7FFF00", "#ADD8E6", "#B0E0E6", "#FFDEAD", "#CD853F",
+        "#32CD32", "#E9967A", "#FFF5EE", "#808080", "#DCDCDC",
+        "#E6E6FA", "#F0FFFF", "#F5F5F5", "#9400D3", "#6A5ACD",
+        "#2F4F4F", "#778899", "#C0C0C0", "#DB7093", "#FFD700",
+        "#E0FFFF", "#FFF0F5", "#8B0000", "#FFE4E1", "#FAEBD7",
+        "#808000", "#DDA0DD", "#B8860B", "#FFC0CB", "#BC8F8F",
+        "#40E0D0", "#87CEEB", "#2E8B57", "#FF1493", "#708090",
+        "#D3D3D3", "#8B008B", "#FAF0E6", "#F5F5DC", "#FFEFD5",
+        "#FF00FF", "#800000", "#8A2BE2", "#000000", "#CD5C5C",
+        "#66CDAA", "#FF8C00", "#FFA07A", "#FFFFF0", "#90EE90",
+        "#A9A9A9", "#F8F8FF", "#00008B", "#FF69B4", "#0000CD",
+        "#FFFFFF", "#87CEFA", "#4682B4", "#98FB98", "#FFE4B5",
+        "#FDF5E6", "#9932CC", "#3CB371", "#FA8072", "#D3D3D3",
+        "#00BFFF", "#DAA520", "#FFB6C1", "#191970", "#00FA9A",
+        "#FFE4C4", "#48D1CC", "#DA70D6", "#9370DB", "#EE82EE",
+        "#EEE8AA", "#008080", "#008B8B", "#D2B48C", "#FFA500",
+        "#FF4500", "#BA55D3", "#DEB887", "#00FF7F", "#D2691E",
+        "#663399", "#BDB76B", "#DC143C", "#D8BFD8", "#800080",
+        "#7B68EE", "#FFEBCD", "#FFDAB9", "#0000FF", "#4B0082",
+        "#C71585", "#228B22", "#F5DEB3", "#FFF8DC", "#696969",
+        "#F0E68C", "#7CFC00", "#6B8E23", "#8FBC8F", "#FF00FF",
+        "#B22222", "#B0C4DE", "#2F4F4F", "#556B2F", "#FFFACD",
+        "#FFFAF0", "#FFFAFA", "#00FF00", "#A52A2A", "#483D8B",
+        "#9ACD32", "#4169E1", "#808080", "#F0FFF0", "#F08080",
+        "#8B4513", "#F4A460", "#008000", "#FFFF00", "#708090",
+        "#006400", "#ADFF2F", "#A9A9A9", "#F0F8FF", "#00CED1",
+        "#A0522D", "#7FFFD4", "#F5FFFA", "#696969", "#FF6347",
+        "#FF7F50", "#FF0000", "#6495ED", "#000080", "#FAFAD2",
+        "#00FFFF", "#5F9EA0", "#20B2AA", "#00FFFF", "#1E90FF",
+        "#AFEEEE", "#FFFFE0", "#778899"
+    ])
+
+    def get_colors(self, order=None):
+        # to index the list need to format is as numpy
+        all_colors = self.all_colors
+        if order is None:
+            return all_colors
+        else:
+            if not isinstance(order, np.ndarray):
+                order = np.array(order)
+            return all_colors[order]
 
 
 def plot_stacked_barplot(
@@ -186,7 +235,7 @@ def get_chr_ticks(genes_positions_table, data, id_col='id', chr_col='chr'):
     # make "id" the index for faster lookup
     genes_positions_table = genes_positions_table.set_index([id_col]).copy()
     # get only the labels that exist in the data
-    labels = [genes_positions_table.loc[x][chr_col] for x in data.columns]
+    labels = genes_positions_table.loc[data.columns, 'chr'].tolist()
 
     from natsort import natsorted
     # get the unique labels and order them for the xticks
@@ -434,9 +483,12 @@ def plot_dist_and_heatmap(
 
 
 def plot_DL_diagnostics(
-      data, recon_data, params, rg1=0, heatmap_thres=None, cmap_custom=None,
-      genes_positions_table=None, h_figsize=(20, 5), p_figsize=(12, 4),
-      saveimg=False, imgpath='./'):
+      data, recon_data, params,
+      rg1=0, heatmap_thres=None, cmap_custom=None,
+      xticks_xlabels=None, xticks_xpos=None,
+      h_figsize=(20, 5), p_figsize=(12, 4),
+      saveimg=False, imgpath='./',
+      imgprefix='Fig_', imgres='.png'):
     n_rows = data.shape[0]
 
     # with the rg1 we choose to show the std(rg1=0)
@@ -464,8 +516,8 @@ def plot_DL_diagnostics(
     full1 = params['full1']
 
     # get RE from results
-    RE_iter = params['RE_iter']
-    RE_window = params['RE_window']
+    RE_iter = params['RE_iter'].values
+    RE_window = params['RE_window'].values
     num = params['log_iter'].shape[0]
 
     # define colors for Frobenius norm and mean error
@@ -490,11 +542,6 @@ def plot_DL_diagnostics(
         if cmap_custom is None:
             cmap_custom = custom_div_cmap(
                 1000, mincol='yellow', midcol='orange', maxcol='red')
-    if genes_positions_table is not None:
-        xticks_xlabels, xticks_xpos = get_chr_ticks(
-            genes_positions_table, data)
-    else:
-        xticks_xlabels, xticks_xpos = None, None
     # original data
 
     h = plot_heatmap_custom(
@@ -503,10 +550,12 @@ def plot_DL_diagnostics(
         xlabel='', ylabel='', title='original data',
         cmap=cmap_custom, xticks_xlabels=xticks_xlabels,
         xticks_xpos=xticks_xpos, square=False)
-    if saveimg:
-        h.savefig(
-            imgpath+'1.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'1',
+        img_ext=imgres,
+        plt_obj=h)
 
     # reconstructed data
     title = 'reconstr. [s0, e0, maxD0, reg0, w0, a0, full0, full1] = ' +\
@@ -519,10 +568,12 @@ def plot_DL_diagnostics(
         xlabel='', ylabel='', title=title,
         cmap=cmap_custom, xticks_xlabels=xticks_xlabels,
         xticks_xpos=xticks_xpos, square=False)
-    if saveimg:
-        h.savefig(
-            imgpath+'2.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'2',
+        img_ext=imgres,
+        plt_obj=h)
 
     # compare RE and RE worst using the same axis
     sameaxis = True
@@ -540,7 +591,7 @@ def plot_DL_diagnostics(
     REWrg0_commonMax = RE_window[:, [0, 3]].max()
     # std/sem and worst_std/worst_sem (for the mean+std plot)
     REWrg1_commonMax = RE_window[:, [1, 4+rg1]].max()
-    if sameAxis:
+    if sameaxis:
         # DIFF mean and worst_mean
         REmdiff_commonMax = max([
             abs(np.diff(RE_iter[:, 0])).max(),
@@ -625,7 +676,7 @@ def plot_DL_diagnostics(
             theMax = max(REstddiff_commonMax, REmdiff_commonMax)
             if rg1 == 1:
                 theMax = max(REsemdiff_commonMax, REmdiff_commonMax)
-            if sameAxis:
+            if sameaxis:
                 axarr3[n, col].axis([0, RE_iter.shape[0]-n, -theMax, theMax])
             axarr3[n, col].axhline(y=0, color='k', linestyle='--')
             axarr3[n, col].set_title(
@@ -675,20 +726,25 @@ def plot_DL_diagnostics(
             theMax = max(REWstddiff_commonMax, REWmdiff_commonMax)
             if rg1 == 1:
                 theMax = max(REWsemdiff_commonMax, REWmdiff_commonMax)
-            if sameAxis:
+            if sameaxis:
                 axarr4[n, col].axis([0, RE_window.shape[0]-n, -theMax, theMax])
             axarr4[n, col].axhline(y=0, color='k', linestyle='--')
             axarr4[n, col].set_title(
                 'window '+ertype+' diff(n='+str(n)+') mean and '+rg_text[rg1])
 
-    if saveimg:
-        f3.savefig(
-            imgpath+'3.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
-    if saveimg:
-        f4.savefig(
-            imgpath+'4.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'3',
+        img_ext=imgres,
+        plt_obj=f3)
+
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'4',
+        img_ext=imgres,
+        plt_obj=f4)
 
     x = data.values
     plt.figure(figsize=p_figsize)
@@ -697,38 +753,42 @@ def plot_DL_diagnostics(
     sns.distplot(
         y.flatten(), hist=False, color='r', kde_kws={"linestyle": '--'})
     plt.title('distribution of original(black) and reconstructed(red) data')
-    plt.tight_layout()
-    if saveimg:
-        plt.savefig(
-            imgpath+'5.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'5',
+        img_ext=imgres,
+        plt_obj=None)
 
     plt.figure(figsize=p_figsize)
     z = (x - y)
     sns.distplot(z.flatten(), hist=False, color='b')
     plt.title('distribution of difference (original - reconstructed)')
-    plt.tight_layout()
-    if saveimg:
-        plt.savefig(
-            imgpath+'6.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'6',
+        img_ext=imgres,
+        plt_obj=None)
 
     plt.figure(figsize=p_figsize)
     z = abs(x - y)
     sns.distplot(z.flatten(), hist=False, color='b')
     plt.title('distribution of absolute difference')
-    plt.tight_layout()
-    if saveimg:
-        plt.savefig(
-            imgpath+'7.png', transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
+    save_image(
+        saveReport=saveimg,
+        output_directory=imgpath,
+        img_name=imgprefix+'7',
+        img_ext=imgres,
+        plt_obj=None)
 
     return
 
 
 def plot_DL_reconst_quality(
         data, D, data_rec, geneCoord=None, plotOthers=True, corr="P",
-        figsize=(10, 10), saveimg=False, imgpath='./'):
+        figsize=(10, 10), saveimg=False, imgpath='./',
+        imgprefix='Fig_', imgres='.png'):
     imgCount = 0
 
     prwD = pdist(D)
@@ -740,37 +800,43 @@ def plot_DL_reconst_quality(
         sns.heatmap(
             squareform(prwDATA), xticklabels=False,
             yticklabels=False, square=True)
-        plt.title('pairwise Euclidean distances between patients in DATA')
-        if saveimg:
-            imgCount += 1
-            plt.savefig(
-                imgpath+str(imgCount)+'.png', transparent=True,
-                bbox_inches='tight', pad_inches=0.1, frameon=False)
+        plt.title('pairwise Euclidean distances between rows in DATA')
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
         plt.figure(figsize=(figsize[0], figsize[0]-2))
         sns.heatmap(
             squareform(prwDATA), xticklabels=False,
             yticklabels=False, square=True)
         plt.title(
-            'pairwise Euclidean distances between patients ' +
+            'pairwise Euclidean distances between rows ' +
             'in reconstructed DATA')
-        if saveimg:
-            imgCount += 1
-            plt.savefig(imgpath+str(
-                imgCount)+'.png', transparent=True, bbox_inches='tight',
-                pad_inches=0.1, frameon=False)
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
         plt.figure(figsize=(figsize[0], figsize[0]-2))
         sns.heatmap(
             squareform(prwD), xticklabels=False,
             yticklabels=False, square=True)
         plt.title(
-            'pairwise Euclidean distances between patients in Dictionary')
-        if saveimg:
-            imgCount += 1
-            plt.savefig(
-                imgpath+str(imgCount)+'.png', transparent=True,
-                bbox_inches='tight', pad_inches=0.1, frameon=False)
+            'pairwise Euclidean distances between rows in Dictionary')
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
     if corr == "P":
         corr_name_ = 'Pearson'
@@ -800,25 +866,27 @@ def plot_DL_reconst_quality(
     for corr_name, samplescorr1, samplescorr2 in corr_sets:
         plt.figure(figsize=figsize)
         plt.scatter(prwD, prwDATA)
-        plt.xlabel('pairw. eucl. dist btwn DICTIONARY patients')
-        plt.ylabel('pairw. eucl. dist btwn DATA patients')
+        plt.xlabel('pairw. eucl. dist btwn DICTIONARY rows')
+        plt.ylabel('pairw. eucl. dist btwn DATA rows')
         # plt.text(
         #   0,prwDATA.max(),
         #   'Pearson Correlation Coef. = '+str(round(samplescorr1,4))
         plt.annotate(
             corr_name+' Correlation Coef. = '+str(round(samplescorr1, 4)),
-            (0, 0), (0, -50), xycoords='axes fraction',
+            (0, 0), (0, -100), xycoords='axes fraction',
             textcoords='offset points', va='top', fontsize=18)
-        if saveimg:
-            imgCount += 1
-            plt.savefig(
-                imgpath+str(imgCount)+corr_name+'.png', transparent=True,
-                bbox_inches='tight', pad_inches=0.1, frameon=False)
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
         plt.figure(figsize=figsize)
         plt.scatter(prwDATA, prwDATA_rec)
-        plt.xlabel('pairw. eucl. dist btwn DATA patients')
-        plt.ylabel('pairw. eucl. dist btwn DATA reconstr. patients')
+        plt.xlabel('pairw. eucl. dist btwn DATA rows')
+        plt.ylabel('pairw. eucl. dist btwn reconstr. DATA rows')
         # plt.text(
         #   0,prwDATA_rec.max(),
         #   'Pearson Correlation Coef. = '+str(round(samplescorr2,4)))
@@ -826,11 +894,13 @@ def plot_DL_reconst_quality(
             corr_name+' Correlation Coef. = '+str(round(samplescorr2, 4)),
             (0, 0), (0, -50), xycoords='axes fraction',
             textcoords='offset points', va='top', fontsize=18)
-        if saveimg:
-            imgCount += 1
-            plt.savefig(
-                imgpath+str(imgCount)+corr_name+'.png', transparent=True,
-                bbox_inches='tight', pad_inches=0.1, frameon=False)
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
     if plotOthers:
         # RE per gene/column
@@ -846,18 +916,20 @@ def plot_DL_reconst_quality(
         plt.errorbar(
             np.arange(RE_cols_m.shape[0]), RE_cols_m.values,
             xerr=0, yerr=RE_cols_std.values, fmt='o',
-            ms=1.5, mfc='k', ecolor='gray', elinewidth=0.05)
-        plt.axhline(y=RE_cols_m.mean(), color='r', linestyle='-', linewidth=3)
+            ms=1.5, mfc='k', ecolor='gray', elinewidth=0.1)
         plt.xlim(0, RE_cols_m.shape[0])
-        plt.title('RE per gene/column')
+        plt.title('RE per data column')
         if geneCoord is not None:
             xlabels, xpos = geneCoord
             plt.xticks(xpos, xlabels, rotation=0)
-        if saveimg:
-            imgCount += 1
-            plt.savefig(
-                imgpath+str(imgCount)+'.png', transparent=True,
-                bbox_inches='tight', pad_inches=0.1, frameon=False)
+        plt.axhline(y=RE_cols_m.mean(), color='r', linestyle='-', linewidth=3)
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=imgpath,
+            img_name=imgprefix+str(imgCount),
+            img_ext=imgres,
+            plt_obj=None)
 
     return corr_sets
 
@@ -1097,7 +1169,7 @@ def atoms_data(
         lenPatients = len(idx_patients)
         if lenPatients == 1:
             idx_patients = idx_patients[0]
-        logger.info('Number of patients with this atom: '+str(lenPatients))
+        logger.info('Number of rows with this atom: '+str(lenPatients))
     else:
         lenPatients = 1
         logger.info(
@@ -1760,3 +1832,33 @@ def plot_knn_network(
             plt.show()
 
     return imgCount_basic, imgCount
+
+
+def save_image(
+        saveReport=False, output_directory="", img_name="figure",
+        img_ext=".png", plt_obj=None):
+    if plt_obj is None:
+        plt_obj = plt.gcf()
+    if saveReport:
+        fpath = os.path.join(output_directory, 'Fig_'+img_name+img_ext)
+        logger.info('Save figure in: '+fpath)
+        plt_obj.savefig(
+            fpath, transparent=True, bbox_inches='tight',
+            pad_inches=0.1, frameon=False)
+        plt.close("all")
+    else:
+        plt_obj.show()
+
+
+def get_vmin_vmax(data, squeeze=None):
+        if isinstance(data, pd.DataFrame):
+            data = data.values
+        values = data.flatten()
+        vmax = abs(values).max()
+        if squeeze is not None:
+            vmax = squeeze
+        if values.min() < 0:
+            vmin = - vmax
+        else:
+            vmin = 0
+        return vmin, vmax

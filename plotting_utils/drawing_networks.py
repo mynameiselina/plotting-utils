@@ -9,55 +9,11 @@ import seaborn as sns
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import Normalize, ListedColormap
 import networkx as nx
-from utils.plotting_utils import custom_div_cmap
+from .core import (
+    custom_div_cmap, MyColors
+)
 import logging
 logger = logging.getLogger(__name__)
-
-
-# manually selected colors for different chromosomes
-# the order is given inside fuction networkx_set_nodes()
-# [[125,5,112,19,46,123,78,120,80,87,89,90,33,26,145,65,93,140,76,127,133,52,59]]
-class MyColors:
-    all_colors = [
-        "#7FFF00", "#ADD8E6", "#B0E0E6", "#FFDEAD", "#CD853F",
-        "#32CD32", "#E9967A", "#FFF5EE", "#808080", "#DCDCDC",
-        "#E6E6FA", "#F0FFFF", "#F5F5F5", "#9400D3", "#6A5ACD",
-        "#2F4F4F", "#778899", "#C0C0C0", "#DB7093", "#FFD700",
-        "#E0FFFF", "#FFF0F5", "#8B0000", "#FFE4E1", "#FAEBD7",
-        "#808000", "#DDA0DD", "#B8860B", "#FFC0CB", "#BC8F8F",
-        "#40E0D0", "#87CEEB", "#2E8B57", "#FF1493", "#708090",
-        "#D3D3D3", "#8B008B", "#FAF0E6", "#F5F5DC", "#FFEFD5",
-        "#FF00FF", "#800000", "#8A2BE2", "#000000", "#CD5C5C",
-        "#66CDAA", "#FF8C00", "#FFA07A", "#FFFFF0", "#90EE90",
-        "#A9A9A9", "#F8F8FF", "#00008B", "#FF69B4", "#0000CD",
-        "#FFFFFF", "#87CEFA", "#4682B4", "#98FB98", "#FFE4B5",
-        "#FDF5E6", "#9932CC", "#3CB371", "#FA8072", "#D3D3D3",
-        "#00BFFF", "#DAA520", "#FFB6C1", "#191970", "#00FA9A",
-        "#FFE4C4", "#48D1CC", "#DA70D6", "#9370DB", "#EE82EE",
-        "#EEE8AA", "#008080", "#008B8B", "#D2B48C", "#FFA500",
-        "#FF4500", "#BA55D3", "#DEB887", "#00FF7F", "#D2691E",
-        "#663399", "#BDB76B", "#DC143C", "#D8BFD8", "#800080",
-        "#7B68EE", "#FFEBCD", "#FFDAB9", "#0000FF", "#4B0082",
-        "#C71585", "#228B22", "#F5DEB3", "#FFF8DC", "#696969",
-        "#F0E68C", "#7CFC00", "#6B8E23", "#8FBC8F", "#FF00FF",
-        "#B22222", "#B0C4DE", "#2F4F4F", "#556B2F", "#FFFACD",
-        "#FFFAF0", "#FFFAFA", "#00FF00", "#A52A2A", "#483D8B",
-        "#9ACD32", "#4169E1", "#808080", "#F0FFF0", "#F08080",
-        "#8B4513", "#F4A460", "#008000", "#FFFF00", "#708090",
-        "#006400", "#ADFF2F", "#A9A9A9", "#F0F8FF", "#00CED1",
-        "#A0522D", "#7FFFD4", "#F5FFFA", "#696969", "#FF6347",
-        "#FF7F50", "#FF0000", "#6495ED", "#000080", "#FAFAD2",
-        "#00FFFF", "#5F9EA0", "#20B2AA", "#00FFFF", "#1E90FF",
-        "#AFEEEE", "#FFFFE0", "#778899"
-    ]
-
-    def get_colors(self, order=None):
-        # to index the list need to format is as numpy
-        all_colors = np.array(all_colors)
-        if order is None:
-            return all_colors
-        else:
-            return all_colors[order]
 
 
 def networkx_init_graph(
@@ -293,14 +249,17 @@ def networkx_set_nodes(
         cmap_node = ListedColormap(mycolor_palette.as_hex())
     elif cmap == 'cat':
         uniq_colors = np.unique(node_colors)
-        n = node_colors.max()+1
+        n = node_colors.max()
+        if 0 in uniq_colors:
+            n += 1
         mycolor_palette = sns.color_palette(palette, n)
-        mycolor_palette_hex = [
-            mycolor_palette.as_hex()[i] for i in uniq_colors]
+        mycolor_palette_hex = mycolor_palette.as_hex()
         cmap_node = ListedColormap(mycolor_palette_hex)
     elif cmap == 'cat_n':
         uniq_colors = np.unique(node_colors)
-        n = nodeColor_max+1
+        n = node_colors.max()
+        if 0 in uniq_colors:
+            n += 1
         mycolor_palette = sns.color_palette(palette, n)
         mycolor_palette_hex = mycolor_palette.as_hex()
         cmap_node = ListedColormap(mycolor_palette_hex)
