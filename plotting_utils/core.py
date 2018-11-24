@@ -9,7 +9,11 @@ from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 from scipy.spatial.distance import pdist, squareform
+from lifelines.statistics import multivariate_logrank_test
+from lifelines import KaplanMeierFitter
+from lifelines.plotting import add_at_risk_counts
 from math import ceil
+from .drawing_networks import networkx_draw_network
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1807,63 +1811,56 @@ def plot_errorbars_cox(
 
 
 def plot_knn_network(
-        similarity, data_to_cluster, layout_mode, pos_param,
-        inference_run_id, node_color_settings, saveimg, img_outDir,
-        imgCount_basic, resolution_extention):
+        similarity, pat_color_cluster, data_to_cluster, layout_mode, pos_param,
+        inference_run_id, node_settings, saveimg, img_outDir,
+        imgCount_basic, resolution_extention,
+        specified_pos=None, skip_clustermap=False):
 
-    imgCount_basic += 1
     imgCount = 0
-    # PLOT similarity #
-    myfig = sns.clustermap(
-        similarity.A, col_cluster=True, row_cluster=True,
-        xticklabels=True, yticklabels=True, square=True,
-        cmap='Reds', figsize=(6, 6))
-    if saveimg:
+    mytitle = inference_run_id+'_pos_param_'+str(np.round(pos_param, 3))
+    if not skip_clustermap:
+        # PLOT similarity #
+        myfig = sns.clustermap(
+            pd.DataFrame(
+                similarity.A, index=data_to_cluster.index,
+                columns=data_to_cluster.index),
+            col_cluster=True, row_cluster=True,
+            xticklabels=False, yticklabels=False,
+            cmap='Reds', figsize=(15, 15),
+            row_colors=pat_color_cluster, col_colors=pat_color_cluster)
+        plt.suptitle(mytitle)
         imgCount += 1
-        myfig.savefig(
-            (
-                img_outDir+str(imgCount_basic)+'__' +
-                inference_run_id+'__'+str(imgCount)+resolution_extention),
-            transparent=True, bbox_inches='tight',
-            pad_inches=0.1, frameon=False)
-        plt.close('all')
-    else:
-        plt.show()
+        save_image(
+            saveReport=saveimg,
+            output_directory=img_outDir,
+            img_name=str(imgCount_basic)+'_'+str(imgCount),
+            img_ext=resolution_extention,
+            plt_obj=None)
 
     # DRAW  NETWORK #
     text = 'patients'
-    size_const = 2000  # some constant for the nodes size
+    size_const = 1500  # some constant for the nodes size
     edge_line_width = -5  # some constant for the edges width
-    nodeSize = abs(data_to_cluster).sum(axis=1)  # size
-    nodeSize = nodeSize/nodeSize.max()
-    # nodeColor = patient_grade_group.copy() ## color
-    # nodeCmap = 'cat_cont'
 
-    mytitle = inference_run_id+'_pos_param_'+str(pos_param)
-    for nodeColor, nodeCmap in node_color_settings:
+    for nodeColor, nodeCmap, cl_palette, nodeSize in node_settings:
         myfig, net_pos, G, _ = networkx_draw_network(
             similarity, nodeSize.values, nodeColor.values,
             size_const=size_const,
             which_nodes=None, all_edges=False,
-            layout=layout_mode, specified_pos=None, pos_param=pos_param,
-            myfigsize=(12, 10), mytitle=mytitle, print_node_names=False,
+            layout=layout_mode, specified_pos=specified_pos,
+            pos_param=pos_param,
+            myfigsize=(20, 18), mytitle=mytitle, print_node_names=False,
             font_size=20,
             node_line_width=1, edge_line_width=edge_line_width,
             nodeCmap=nodeCmap, nodePalette=cl_palette,
             mySeed=8)
-        if saveimg:
-            imgCount += 1
-            myfig.savefig(
-                (
-                    img_outDir+str(imgCount_basic)+'__'+inference_run_id +
-                    '__'+str(imgCount)+resolution_extention),
-                transparent=True, bbox_inches='tight',
-                pad_inches=0.1, frameon=False)
-            plt.close('all')
-        else:
-            plt.show()
-
-    return imgCount_basic, imgCount
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=img_outDir,
+            img_name=str(imgCount_basic)+'_'+str(imgCount),
+            img_ext=resolution_extention,
+            plt_obj=None)
 
 
 def save_image(
@@ -1976,13 +1973,19 @@ def plot_survival_curves(
         pat_clust_clpr.columns = ['groups', pat_clinical_property_name]
 
         plt.figure(figsize=(10, 8))
+        # sns.boxenplot(
+        #     data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
+        #     linewidth=3, k_depth='tukey')
+        # sns.stripplot(
+        #     data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
+        #     size=8, jitter=True, linewidth=0.8)
         sns.violinplot(
             data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
-            cut=0, linewidth=1.5)
-        sns.swarmplot(
-            data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
-            edgecolor='k', linewidth=0.8)
-        plt.yticks(np.arange(1, 6))
+            cut=0, linewidth=2)
+        # sns.swarmplot(
+        #     data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
+        #     edgecolor='k', linewidth=0.8)
+        # plt.yticks(np.arange(1, 6))
         imgCount += 1
         save_image(
             saveReport=saveimg,
