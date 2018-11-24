@@ -269,22 +269,42 @@ def break_yAxis(bottom_axis, top_axis, d=0.005):
 
 
 def distplot_breakYaxis(
-        x, ymax_bottom, ymax_top, mytitle='', color=None, d=0.005, pad=0,
-        figsize=(10, 5)):
+        x, ymax_bottom, ymax_top=None, mytitle='', color=None, d=0.005,
+        figsize=(10, 5), bins=10):
+
+    if ymax_top is None:
+        freq, bins = np.histogram(x, bins=bins)
+        ymax_top = freq.max()
+        _base = 10
+        ymax_top = int(_base * np.ceil(float(ymax_top)/_base))
 
     f, axis = plt.subplots(2, 1, sharex=True, figsize=figsize)
     # choose your plot
-    sns.distplot(x.flatten(), ax=axis[0], hist=True, kde=False, color=color)
-    sns.distplot(x.flatten(), ax=axis[1], hist=True, kde=False, color=color)
+    sns.distplot(
+        x.flatten(), ax=axis[0], hist=True, kde=False, color=color, bins=bins)
+    sns.distplot(
+        x.flatten(), ax=axis[1], hist=True, kde=False, color=color, bins=bins)
 
     # set limitis on y axis (play around with threshold)
-    axis[0].set_ylim(ymax_top-ymax_bottom, ymax_top)
+    second_max = np.max(sorted(freq)[:-1])
+    ymin_top = ymax_top-ymax_bottom
+    if (second_max < ymin_top) and (second_max > ymax_bottom):
+        top_diff = ymin_top-second_max
+        bottom_diff = second_max-ymax_bottom
+        if top_diff < bottom_diff:
+            ymin_top = second_max
+            ymin_top = int(_base * np.floor(float(ymin_top)/_base))
+        else:
+            ymax_bottom = second_max
+            ymax_bottom = int(_base * np.ceil(float(ymax_bottom)/_base))
+
+    axis[0].set_ylim(ymin_top, ymax_top)
     axis[0].set_title(mytitle)
     axis[1].set_ylim(0, ymax_bottom)
 
     # leave as is
     break_yAxis(axis[0], axis[1], d=d)
-    plt.tight_layout(pad=pad)
+    # plt.tight_layout(pad=pad)
 
 
 def plot_heatmap_custom(
@@ -529,21 +549,19 @@ def plot_DL_diagnostics(
     toPrint = True
 
     # plot heatmaps
-    if heatmap_thres is None:
-        heatmap_thres = abs(data).max().max()
-
-    if data.min().min() < 0:
-        thres = [-heatmap_thres, heatmap_thres]
-        if cmap_custom is None:
+    if cmap_custom is None:
+        if data.min().min() < 0:
             cmap_custom = custom_div_cmap(
                 1000, mincol='blue', midcol='white', maxcol='red')
-    else:
-        thres = [0, heatmap_thres]
-        if cmap_custom is None:
+        else:
             cmap_custom = custom_div_cmap(
                 1000, mincol='yellow', midcol='orange', maxcol='red')
-    # original data
 
+    # original data
+    if heatmap_thres is None:
+        thres = get_vmin_vmax(data)
+    else:
+        thres = (-heatmap_thres, heatmap_thres)
     h = plot_heatmap_custom(
         data, figsize=h_figsize,
         vmin=thres[0], vmax=thres[1], xticklabels=False, yticklabels=False,
@@ -562,6 +580,11 @@ def plot_DL_diagnostics(
         str([s0, e0, maxD0, reg0, w0, a0, full0, full1])
     # recon_data = pd.DataFrame(
     #   np.dot(D,X), columns=data.columns, index=data.index)
+    if heatmap_thres is None:
+        thres = get_vmin_vmax(recon_data)
+    else:
+        thres = (-heatmap_thres, heatmap_thres)
+    print(thres)
     h = plot_heatmap_custom(
         recon_data, figsize=h_figsize,
         vmin=thres[0], vmax=thres[1], xticklabels=False, yticklabels=False,
@@ -704,7 +727,8 @@ def plot_DL_diagnostics(
         # plot scatter of the mean
         # (less point here than in RE_iter so let's see them)
         axarr4[0, col].scatter(
-            np.arange(RE_window.shape[0]), (RE_window[:, er+0]), color=m_color)
+            np.arange(RE_window.shape[0]), (RE_window[:, er+0]),
+            color=m_color, s=50)
         # axes and title
         axarr4[0, col].axhline(y=0, color='k', linestyle='--')
         # set ylim (use the value for the common y axis)
@@ -1423,10 +1447,18 @@ def plot_adjRI(
         return adjRI_df
 
 
-def getRGB(values, palette="tab10", return_palette=False):
+def getRGB(
+        values, palette="tab10", return_palette=False,
+        vmin=None, vmax=None):
     nu = np.unique(values.dropna())
+    if (vmin is not None) and (vmax is not None):
+        lin_ar = np.arange(vmin, vmax, 0.001)
+        lin_ar = np.append(lin_ar, vmax)
+        lin_ar = np.append(lin_ar, nu)
+        lin_ar = sorted(lin_ar)
+        nu = np.unique(lin_ar)
     if values.isnull().any():
-        nu = nu + 1
+        nu = np.append(nu, np.nan)
     if '_r' in palette:
         palette = palette.rsplit('_r')[0]
         mycolor_palette = sns.color_palette(palette, len(nu))

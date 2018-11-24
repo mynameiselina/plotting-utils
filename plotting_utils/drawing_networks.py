@@ -9,6 +9,7 @@ import seaborn as sns
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import Normalize, ListedColormap
 import networkx as nx
+from networkx.drawing.nx_agraph import graphviz_layout
 from .core import (
     custom_div_cmap, MyColors
 )
@@ -240,12 +241,15 @@ def networkx_set_nodes(
     elif cmap == 'chr':
         nodeColor_max = max(node_colors.max(), 23)
         nodeColor_min = 1
-        myCol_obj = MyColors()
-        myExtra = myCol_obj.get_colors(order=[[
-            125, 5, 112, 19, 46, 123, 78, 120, 80, 87, 89, 90,
-            33, 26, 145, 65, 93, 140, 76, 127, 133, 52, 59]])
-        myExtra = myExtra[nodeColor_min-1:nodeColor_max]
-        mycolor_palette = sns.color_palette(myExtra)
+        if palette is None:
+            myCol_obj = MyColors()
+            myExtra = myCol_obj.get_colors(order=[
+                125, 5, 112, 19, 46, 123, 78, 120, 80, 87, 89, 90,
+                33, 26, 145, 65, 93, 140, 76, 127, 133, 52, 59])
+            myExtra = myExtra[nodeColor_min-1:nodeColor_max]
+            mycolor_palette = sns.color_palette(myExtra)
+        else:
+            mycolor_palette = sns.color_palette(palette)
         cmap_node = ListedColormap(mycolor_palette.as_hex())
     elif cmap == 'cat':
         uniq_colors = np.unique(node_colors)
@@ -256,9 +260,11 @@ def networkx_set_nodes(
         mycolor_palette_hex = mycolor_palette.as_hex()
         cmap_node = ListedColormap(mycolor_palette_hex)
     elif cmap == 'cat_n':
-        uniq_colors = np.unique(node_colors)
-        n = node_colors.max()
-        if 0 in uniq_colors:
+        if nodeColor_max is None:
+            n = node_colors.max()
+        else:
+            n = nodeColor_max
+        if 0 in [node_colors.min(), nodeColor_min]:
             n += 1
         mycolor_palette = sns.color_palette(palette, n)
         mycolor_palette_hex = mycolor_palette.as_hex()
@@ -331,9 +337,9 @@ def networkx_set_pie_nodes(
             1000, mincol='gray', midcol='lightblue', maxcol='darkblue')
     elif cmap == 'chr':
         myCol_obj = MyColors()
-        myExtra = myCol_obj.get_colors(order=[[
+        myExtra = myCol_obj.get_colors(order=[
             45, 125, 5, 112, 19, 46, 123, 78, 120, 80, 87, 89, 90,
-            33, 26, 145, 65, 93, 140, 76, 127, 133, 52, 59]])
+            33, 26, 145, 65, 93, 140, 76, 127, 133, 52, 59])
         myExtra = myExtra[n]
         mycolor_palette = sns.color_palette(myExtra)
         cmap_node = ListedColormap(mycolor_palette.as_hex())
@@ -428,7 +434,10 @@ def networkx_set_layout(
             pos = None
         elif layout == 'kamada_kawai':
             logger.info('kamada_kawai with weights = '+weight)
-            pos = nx.kamada_kawai_layout(G, weight=weight)
+            pos = nx.kamada_kawai_layout(G, weight=weight, scale=pos_param)
+        else:
+            logger.error('Invalid layout setting!'+weight)
+            raise
 
     else:
         pos = specified_pos
@@ -444,7 +453,7 @@ def networkx_draw(
         node_colorsNOT2draw, node_sizesNOT2draw, node_line_width,
         cmap_edge, norm_edge, cmap_node, norm_node, clim_node, nodeCmap,
         nodeCmap_ticklabels, print_node_names, print_edge_names, font_size,
-        nodes_as_pies):
+        font_color, nodes_as_pies):
 
     _positions = pd.DataFrame.from_dict(pos)
     pos_min_lims = _positions.min(axis=1).values
@@ -579,8 +588,10 @@ def networkx_draw(
                 a.set_title(
                     node_labels[n], x=0.5,  y=0.5, fontdict={
                         'fontsize': font_size,
-                        'fontweight': abs(edge_line_width)},
-                    **{'color': 'black', 'weight': 'bold', 'alpha': 0.8})
+                        'fontweight': abs(edge_line_width),
+                        'color': font_color,
+                        'weight': 'bold',
+                        'alpha': 0.8})
     else:
         # draw nodes
         if which_nodes is not None:
@@ -605,14 +616,19 @@ def networkx_draw(
             if with_names is None:
                 node_labels = {e: str(e) for e in sorted(G.nodes())}
                 node_label_handles = nx.draw_networkx_labels(
-                    G, pos, labels=node_labels, font_size=font_size, ax=ax1)
+                    G, pos, labels=node_labels,
+                    font_size=font_size,
+                    font_color=font_color,
+                    font_weight='bold',
+                    ax=ax1)
             else:
                 node_labels = {
                     e: with_names[i] for i, e in enumerate(sorted(nodes2draw))}
                 node_label_handles = nx.draw_networkx_labels(
                     G, pos, labels=node_labels,
                     font_size=font_size,
-                    font_color='k',  # font_weight ='bold',
+                    font_color=font_color,
+                    font_weight='bold',
                     ax=ax1)
 
     # plot colorbar for nodes in the bottom horizontal axis
@@ -645,6 +661,7 @@ def networkx_draw_network(
         layout='spring', specified_pos=None, pos_param=None,
         myfigsize=(20, 20), mytitle='',
         print_node_names=True, font_size=15, with_names=None,
+        font_color='black',
         edgeCmap='default', edgePalette="tab10",
         edge_color_min=None, edge_color_max=None, edge_line_width=3.5,
         nodeCmap='default', nodeCmap_ticklabels=None, nodePalette="tab10",
@@ -709,7 +726,7 @@ def networkx_draw_network(
         nodes2draw, nodesNOT2draw, node_colors2draw, node_sizes2draw,
         node_colorsNOT2draw, node_sizesNOT2draw, node_line_width,
         cmap_edge, norm_edge, cmap_node, norm_node, clim_node,
-        nodeCmap, nodeCmap_ticklabels,
-        print_node_names, print_edge_names, font_size, nodes_as_pies)
+        nodeCmap, nodeCmap_ticklabels, print_node_names,
+        print_edge_names, font_size, font_color, nodes_as_pies)
 
     return myfig, pos, G, which_nodes
