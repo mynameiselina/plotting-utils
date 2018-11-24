@@ -1894,3 +1894,222 @@ def get_vmin_vmax(data, squeeze=None):
         else:
             vmin = 0
         return vmin, vmax
+
+
+def plot_survival_curves(
+        groups, T_df, E_df, alpha=0.99, t_0=-1, palette='Set1',
+        survival_label="first biochemical recurrence",
+        saveimg=False, output_directory='.', imgCount=0, img_ext='.png',
+        pat_clinical_property=None, pat_clinical_property_name=None):
+
+    # Kaplan-Meier curves
+    labels_pat_com = np.unique(groups)
+    n_pat_com = len(labels_pat_com)
+    ixs = {}
+    for i in np.unique(groups):
+        ixs[i] = (groups.values == i)
+
+    # PLOT Kaplan-Meier
+    sns.set_palette(palette, n_pat_com)
+
+    fig, axes = plt.subplots(figsize=(15, 15))
+
+    results = multivariate_logrank_test(
+        T_df, groups, event_observed=E_df, alpha=alpha, t_0=t_0)
+
+    kmfs = []
+    for i in labels_pat_com:
+        kmf = KaplanMeierFitter()
+        kmf.fit(T_df[ixs[i]], E_df[ixs[i]], label='group '+str(i))
+        kmf.plot(ax=axes, ci_show=False, show_censors=True, linewidth=4)
+        kmfs.append(kmf)
+
+    plt.xlabel("days")
+    plt.ylabel(survival_label)
+    plt.suptitle(
+        str(n_pat_com) +
+        " patient groups" +
+        " with multivariate logrank test pvalue " +
+        str(results.p_value), fontsize=20)
+
+    # Add counts showing how many individuals were at risk
+    # at each time point in survival/hazard plots.
+    add_at_risk_counts(*kmfs, ax=axes)
+
+    imgCount += 1
+    save_image(
+        saveReport=saveimg,
+        output_directory=output_directory,
+        img_name=str(imgCount),
+        img_ext=img_ext,
+        plt_obj=None)
+
+    # with cross-validation
+    fig, axes = plt.subplots(figsize=(15, 15))
+
+    for i in labels_pat_com:
+        kmf.fit(T_df[ixs[i]], E_df[ixs[i]], label='group '+str(i))
+        kmf.plot(ax=axes, ci_show=True, show_censors=True)
+
+    plt.xlabel("days")
+    plt.ylabel(survival_label)
+    plt.suptitle(
+        str(n_pat_com) +
+        " patient groups with cross-validation " +
+        " with multivariate logrank test pvalue " +
+        str(results.p_value), fontsize=20)
+    imgCount += 1
+    save_image(
+        saveReport=saveimg,
+        output_directory=output_directory,
+        img_name=str(imgCount),
+        img_ext=img_ext,
+        plt_obj=None)
+
+    if pat_clinical_property is not None:
+        if isinstance(pat_clinical_property, pd.Series):
+            pat_clinical_property = pat_clinical_property.to_frame()
+
+        # clinical property boxplots on combined patient groups
+        pat_clust_clpr = pd.concat(
+            [groups.to_frame(), pat_clinical_property], axis=1)
+        pat_clust_clpr.columns = ['groups', pat_clinical_property_name]
+
+        plt.figure(figsize=(10, 8))
+        sns.violinplot(
+            data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
+            cut=0, linewidth=1.5)
+        sns.swarmplot(
+            data=pat_clust_clpr, x='groups', y=pat_clinical_property_name,
+            edgecolor='k', linewidth=0.8)
+        plt.yticks(np.arange(1, 6))
+        imgCount += 1
+        save_image(
+            saveReport=saveimg,
+            output_directory=output_directory,
+            img_name=str(imgCount),
+            img_ext=img_ext,
+            plt_obj=None)
+
+    return imgCount
+
+
+def plot_oncoscan_frequency_plot(
+        data_ampl, data_del,
+        title, xlabels, xpos,
+        saveimg, imgCount, resolution_extention, output_directory):
+    # PLOT freq plot
+    if (xlabels is not None) and (xpos is not None):
+        plot_aggr_mut(data_ampl, data_del, xlabels, xpos,
+                      mytitle=title)
+    else:
+        plot_aggr_mut(data_ampl, data_del, None, None,
+                      mytitle=title)
+
+    imgCount += 1
+    save_image(
+        saveReport=saveimg,
+        output_directory=output_directory,
+        img_name=str(imgCount),
+        img_ext=resolution_extention,
+        plt_obj=None)
+
+    return imgCount
+
+
+def plot_aggr_mut(
+        aggr_ampl, aggr_del, xlabels, xpos, mytitle='',
+        printNames=False, font=2, height_space=1,
+        del_space=50, ampl_space=50,
+        pos_color='r', neg_color='b'):
+
+    fig = plt.figure(figsize=(20, 5))
+    ax = fig.add_subplot(111)
+    plt.axhline(y=0, c='k', linewidth=0.5)
+    maxLenGeneName = max(len(max(aggr_ampl.index.values, key=len)),
+                         len(max(aggr_del.index.values, key=len)))
+
+    ampl_space = aggr_ampl.shape[0] * 0.0025
+    del_space = aggr_del.shape[0] * 0.0025
+    ####
+    s = aggr_ampl*100
+    sMax = s.max()
+    y_offset = (sMax*height_space)+maxLenGeneName
+    if sMax+y_offset > 100:
+        y_offset = 100-sMax
+    xs = s.nonzero()[0]
+    n = len(xs)
+    if n > 0:
+        # step = xs.std()*ampl_space
+        step = ampl_space
+        mid_x = int(-1+n/2)
+        new_xs = np.ndarray(n)
+        count = 1
+        for i in np.arange(mid_x-1, -1, -1):
+            new_xs[i] = xs[i]-count*step
+            count = count + 1
+        new_xs[mid_x] = xs[mid_x]
+        count = 1
+        for i in np.arange(mid_x+1, n):
+            new_xs[i] = xs[i]+count*step
+            count = count + 1
+    ####
+    len_s = len(s)
+    ax.set_xlim(-1, len_s)
+    ar = np.arange(0, len_s)
+    plt.scatter(np.arange(0, len_s), s, s=1, color=pos_color,)
+    ax.fill_between(np.arange(0, len_s), 0, s, color=pos_color,)
+
+    if printNames:
+        for i, x in enumerate(xs):
+            geneName = aggr_ampl.iloc[x:x+1].index.values[0]
+            ax.annotate('%s' % geneName, xy=(new_xs[i], s[x]+y_offset),
+                        textcoords='data', fontsize=font, rotation=90,
+                        horizontalalignment='center', verticalalignment='top')
+
+    ####
+    if (aggr_del > 0).any():
+        s = aggr_del*100
+        sMax = s.max()
+        y_offset = (sMax*height_space)+maxLenGeneName
+        if sMax+y_offset > 100:
+            y_offset = 100-sMax
+        xs = s.nonzero()[0]
+        n = len(xs)
+        if n > 0:
+            # step = xs.std()*del_space
+            step = del_space
+            mid_x = int(-1+n/2)
+            new_xs = np.ndarray(n)
+            count = 1
+            for i in np.arange(mid_x-1, -1, -1):
+                new_xs[i] = xs[i]-count*step
+                count = count + 1
+            new_xs[mid_x] = xs[mid_x]
+            count = 1
+            for i in np.arange(mid_x+1, n):
+                new_xs[i] = xs[i]+count*step
+                count = count + 1
+        ####
+        plt.scatter(np.arange(0, len_s), -s, s=1, color=neg_color,)
+        ax.fill_between(np.arange(0, len_s), 0, -s, color=neg_color,)
+        if printNames:
+            for i, x in enumerate(xs):
+                geneName = aggr_del.iloc[x:x+1].index.values[0]
+                ax.annotate('%s' % geneName, xy=(new_xs[i], -s[x]-y_offset),
+                            textcoords='data', fontsize=font, rotation=90,
+                            horizontalalignment='center',
+                            verticalalignment='bottom')
+
+    if xpos is not None:
+        plt.xticks(xpos, xlabels, rotation=0)
+        plt.xlabel('chromosomes ' +
+                   '(the number is aligned at the end of the chr region)')
+    elif aggr_ampl.shape[0] < 20:
+        plt.xticks(np.arange(aggr_ampl.shape[0]), aggr_ampl.index, rotation=90)
+    plt.ylabel('%')
+    if (aggr_del > 0).any():
+        plt.ylim([-100, 100])
+    else:
+        plt.ylim([0, 100])
+    plt.title(mytitle)
