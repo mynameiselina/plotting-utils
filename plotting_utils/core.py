@@ -1997,7 +1997,7 @@ def plot_survival_curves(
     return imgCount
 
 
-def plot_oncoscan_frequency_plot(
+def plot_frequency_plot(
         data_ampl, data_del,
         title, xlabels, xpos,
         saveimg, imgCount, resolution_extention, output_directory):
