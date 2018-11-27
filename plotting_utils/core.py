@@ -13,7 +13,7 @@ from lifelines.statistics import multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.plotting import add_at_risk_counts
 from math import ceil
-from .drawing_networks import networkx_draw_network
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1815,6 +1815,7 @@ def plot_knn_network(
         inference_run_id, node_settings, saveimg, img_outDir,
         imgCount_basic, resolution_extention,
         specified_pos=None, skip_clustermap=False):
+    from .drawing_networks import networkx_draw_network
 
     imgCount = 0
     mytitle = inference_run_id+'_pos_param_'+str(np.round(pos_param, 3))
