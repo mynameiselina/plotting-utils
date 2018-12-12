@@ -235,15 +235,18 @@ def plot_clustered_stacked(
 # 		fig.savefig(fpath, bbox_extra_artists=(l2,), bbox_inches='tight')
 
 
-def get_chr_ticks(genes_positions_table, data, id_col='id', chr_col='chr'):
+def get_chr_ticks(
+    genes_positions_table, gene_names, id_col='id', chr_col='chr',
+    epsilon=None, clever_spacing_on=False
+):
     # make "id" the index for faster lookup
     genes_positions_table = genes_positions_table.set_index([id_col]).copy()
     # get only the labels that exist in the data
-    labels = genes_positions_table.loc[data.columns, 'chr'].tolist()
+    labels = genes_positions_table.loc[gene_names, chr_col].tolist()
 
     from natsort import natsorted
     # get the unique labels and order them for the xticks
-    xticks = np.array(natsorted(set(labels)))
+    xticks = np.array(natsorted(set(labels)), dtype=object)
 
     # count how many genes in the data for each label
     chr_size = pd.Series(labels).value_counts()
@@ -252,6 +255,17 @@ def get_chr_ticks(genes_positions_table, data, id_col='id', chr_col='chr'):
 
     # the cumulative sum to get the position of the column when each label ends
     chr_endpos = chr_size.cumsum()
+
+    if clever_spacing_on:
+        if epsilon is None:
+            epsilon = 1
+        for i in np.arange(len(xticks)-1):
+            this_name = xticks[i]
+            next_name = xticks[i+1]
+            delta = chr_endpos.loc[next_name] - chr_endpos.loc[this_name] 
+            if delta <= epsilon:
+                xticks[i] = str(xticks[i])+(delta*'--')+'   '
+                chr_endpos.rename(index={this_name: xticks[i]}, inplace=True)
 
     return xticks, chr_endpos
 
@@ -512,7 +526,7 @@ def plot_DL_diagnostics(
       xticks_xlabels=None, xticks_xpos=None,
       h_figsize=(20, 5), p_figsize=(12, 4),
       saveimg=False, imgpath='./',
-      imgprefix='Fig_', imgres='.png'):
+      imgprefix='Fig_', resolution_extention='.png'):
     n_rows = data.shape[0]
 
     # with the rg1 we choose to show the std(rg1=0)
@@ -576,7 +590,7 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'1',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=h)
 
     # reconstructed data
@@ -599,7 +613,7 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'2',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=h)
 
     # compare RE and RE worst using the same axis
@@ -764,14 +778,14 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'3',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=f3)
 
     save_image(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'4',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=f4)
 
     x = data.values
@@ -785,7 +799,7 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'5',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=None)
 
     plt.figure(figsize=p_figsize)
@@ -796,7 +810,7 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'6',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=None)
 
     plt.figure(figsize=p_figsize)
@@ -807,7 +821,7 @@ def plot_DL_diagnostics(
         saveReport=saveimg,
         output_directory=imgpath,
         img_name=imgprefix+'7',
-        img_ext=imgres,
+        img_ext=resolution_extention,
         plt_obj=None)
 
     return
@@ -816,7 +830,7 @@ def plot_DL_diagnostics(
 def plot_DL_reconst_quality(
         data, D, data_rec, geneCoord=None, plotOthers=True, corr="P",
         figsize=(10, 10), saveimg=False, imgpath='./',
-        imgprefix='Fig_', imgres='.png'):
+        imgprefix='Fig_', resolution_extention='.png'):
     imgCount = 0
 
     prwD = pdist(D)
@@ -834,7 +848,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
         plt.figure(figsize=(figsize[0], figsize[0]-2))
@@ -849,7 +863,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
         plt.figure(figsize=(figsize[0], figsize[0]-2))
@@ -863,7 +877,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
     if corr == "P":
@@ -908,7 +922,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
         plt.figure(figsize=figsize)
@@ -927,7 +941,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
     if plotOthers:
@@ -956,7 +970,7 @@ def plot_DL_reconst_quality(
             saveReport=saveimg,
             output_directory=imgpath,
             img_name=imgprefix+str(imgCount),
-            img_ext=imgres,
+            img_ext=resolution_extention,
             plt_obj=None)
 
     return corr_sets
@@ -1424,11 +1438,11 @@ def plot_adjRI(
             plot_palette=plot_palette, as_cont=as_cont)
         run_colors = pd.concat(
             [method_colors, k_colors, p_colors, n_cluster_colors, extra_color],
-            axis=1)
+            axis=1, sort=False)
     else:
         run_colors = pd.concat(
             [method_colors, k_colors, p_colors, n_cluster_colors],
-            axis=1)
+            axis=1, sort=False)
 
     if not noOriginal:
         sns.clustermap(
@@ -1813,7 +1827,7 @@ def plot_errorbars_cox(
 def plot_knn_network(
         similarity, pat_color_cluster, data_to_cluster, layout_mode, pos_param,
         inference_run_id, node_settings, saveimg, img_outDir,
-        imgCount_basic, resolution_extention,
+        imgName, resolution_extention,
         specified_pos=None, skip_clustermap=False):
     from .drawing_networks import networkx_draw_network
 
@@ -1834,7 +1848,7 @@ def plot_knn_network(
         save_image(
             saveReport=saveimg,
             output_directory=img_outDir,
-            img_name=str(imgCount_basic)+'_'+str(imgCount),
+            img_name=str(imgName)+'_'+str(imgCount),
             img_ext=resolution_extention,
             plt_obj=None)
 
@@ -1842,7 +1856,6 @@ def plot_knn_network(
     text = 'patients'
     size_const = 1500  # some constant for the nodes size
     edge_line_width = -5  # some constant for the edges width
-
     for nodeColor, nodeCmap, cl_palette, nodeSize in node_settings:
         myfig, net_pos, G, _ = networkx_draw_network(
             similarity, nodeSize.values, nodeColor.values,
@@ -1859,9 +1872,11 @@ def plot_knn_network(
         save_image(
             saveReport=saveimg,
             output_directory=img_outDir,
-            img_name=str(imgCount_basic)+'_'+str(imgCount),
+            img_name=str(imgName)+'_'+str(imgCount),
             img_ext=resolution_extention,
             plt_obj=None)
+
+    return net_pos
 
 
 def save_image(
@@ -1870,7 +1885,7 @@ def save_image(
     if plt_obj is None:
         plt_obj = plt.gcf()
     if saveReport:
-        fpath = os.path.join(output_directory, 'Fig_'+img_name+img_ext)
+        fpath = os.path.join(output_directory, 'Fig_'+str(img_name)+img_ext)
         logger.info('Save figure in: '+fpath)
         plt_obj.savefig(
             fpath, transparent=True, bbox_inches='tight',
@@ -1897,9 +1912,12 @@ def get_vmin_vmax(data, squeeze=None):
 def plot_survival_curves(
         groups, T_df, E_df, alpha=0.99, t_0=-1, palette='Set1',
         survival_label="first biochemical recurrence",
-        saveimg=False, output_directory='.', imgCount=0, img_ext='.png',
+        with_table=True, with_legend=False,
+        saveimg=False, output_directory='.', imgName='KMcurves',
+        resolution_extention='.png',
         pat_clinical_property=None, pat_clinical_property_name=None):
 
+    imgCount = 0
     # Kaplan-Meier curves
     labels_pat_com = np.unique(groups)
     n_pat_com = len(labels_pat_com)
@@ -1910,7 +1928,7 @@ def plot_survival_curves(
     # PLOT Kaplan-Meier
     sns.set_palette(palette, n_pat_com)
 
-    fig, axes = plt.subplots(figsize=(15, 15))
+    fig, axes = plt.subplots(figsize=(8, 8))
 
     results = multivariate_logrank_test(
         T_df, groups, event_observed=E_df, alpha=alpha, t_0=t_0)
@@ -1922,46 +1940,59 @@ def plot_survival_curves(
         kmf.plot(ax=axes, ci_show=False, show_censors=True, linewidth=4)
         kmfs.append(kmf)
 
+    if not with_legend:
+        axes.get_legend().remove()
+
     plt.xlabel("days")
     plt.ylabel(survival_label)
-    plt.suptitle(
+    plt.title(
         str(n_pat_com) +
         " patient groups" +
         " with multivariate logrank test pvalue " +
-        str(results.p_value), fontsize=20)
+        str(results.p_value)+"\n")
 
     # Add counts showing how many individuals were at risk
     # at each time point in survival/hazard plots.
-    add_at_risk_counts(*kmfs, ax=axes)
+    if with_table:
+        add_at_risk_counts(*kmfs, ax=axes)
 
     imgCount += 1
     save_image(
         saveReport=saveimg,
         output_directory=output_directory,
-        img_name=str(imgCount),
-        img_ext=img_ext,
+        img_name=str(imgName)+'_'+str(imgCount),
+        img_ext=resolution_extention,
         plt_obj=None)
 
     # with cross-validation
-    fig, axes = plt.subplots(figsize=(15, 15))
+    fig, axes = plt.subplots(figsize=(8, 8))
 
     for i in labels_pat_com:
         kmf.fit(T_df[ixs[i]], E_df[ixs[i]], label='group '+str(i))
-        kmf.plot(ax=axes, ci_show=True, show_censors=True)
+        kmf.plot(ax=axes, ci_show=True, show_censors=True, linewidth=4)
+
+    if not with_legend:
+        axes.get_legend().remove()
 
     plt.xlabel("days")
     plt.ylabel(survival_label)
-    plt.suptitle(
+    plt.title(
         str(n_pat_com) +
         " patient groups with cross-validation " +
         " with multivariate logrank test pvalue " +
-        str(results.p_value), fontsize=20)
+        str(results.p_value)+"\n")
+
+    # Add counts showing how many individuals were at risk
+    # at each time point in survival/hazard plots.
+    if with_table:
+        add_at_risk_counts(*kmfs, ax=axes)
+
     imgCount += 1
     save_image(
         saveReport=saveimg,
         output_directory=output_directory,
-        img_name=str(imgCount),
-        img_ext=img_ext,
+        img_name=str(imgName)+'_'+str(imgCount),
+        img_ext=resolution_extention,
         plt_obj=None)
 
     if pat_clinical_property is not None:
@@ -1970,7 +2001,7 @@ def plot_survival_curves(
 
         # clinical property boxplots on combined patient groups
         pat_clust_clpr = pd.concat(
-            [groups.to_frame(), pat_clinical_property], axis=1)
+            [groups.to_frame(), pat_clinical_property], axis=1, sort=False)
         pat_clust_clpr.columns = ['groups', pat_clinical_property_name]
 
         plt.figure(figsize=(10, 8))
@@ -1991,34 +2022,34 @@ def plot_survival_curves(
         save_image(
             saveReport=saveimg,
             output_directory=output_directory,
-            img_name=str(imgCount),
-            img_ext=img_ext,
+            img_name=str(imgName)+'_'+str(imgCount),
+            img_ext=resolution_extention,
             plt_obj=None)
-
-    return imgCount
 
 
 def plot_frequency_plot(
         data_ampl, data_del,
         title, xlabels, xpos,
-        saveimg, imgCount, resolution_extention, output_directory):
+        saveimg, imgName, resolution_extention, output_directory,
+        pos_color='r', neg_color='b'):
     # PLOT freq plot
     if (xlabels is not None) and (xpos is not None):
-        plot_aggr_mut(data_ampl, data_del, xlabels, xpos,
-                      mytitle=title)
+        plot_aggr_mut(
+            data_ampl, data_del, xlabels, xpos,
+            pos_color=pos_color, neg_color=neg_color,
+            mytitle=title)
     else:
-        plot_aggr_mut(data_ampl, data_del, None, None,
-                      mytitle=title)
+        plot_aggr_mut(
+            data_ampl, data_del, None, None,
+            pos_color=pos_color, neg_color=neg_color,
+            mytitle=title)
 
-    imgCount += 1
     save_image(
         saveReport=saveimg,
         output_directory=output_directory,
-        img_name=str(imgCount),
+        img_name=str(imgName),
         img_ext=resolution_extention,
         plt_obj=None)
-
-    return imgCount
 
 
 def plot_aggr_mut(
