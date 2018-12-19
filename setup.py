@@ -125,7 +125,7 @@ scripts = [
 
 setup(
     name='plotting_utils',
-    version='0.0',
+    version='1.0',
     description=(
         'custom functions for plots (matplotlib, seaborn)'
     ),

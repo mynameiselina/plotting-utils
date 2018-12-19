@@ -5,14 +5,16 @@ import scipy as sp
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+from matplotlib import colors
 import seaborn as sns
-from matplotlib.colors import ListedColormap
 from scipy.spatial.distance import pdist, squareform
 from lifelines.statistics import multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.plotting import add_at_risk_counts
 from math import ceil
+from natsort import natsorted
+from omics_processing.process_data import reverse_processing
 
 import logging
 logger = logging.getLogger(__name__)
@@ -244,7 +246,6 @@ def get_chr_ticks(
     # get only the labels that exist in the data
     labels = genes_positions_table.loc[gene_names, chr_col].tolist()
 
-    from natsort import natsorted
     # get the unique labels and order them for the xticks
     xticks = np.array(natsorted(set(labels)), dtype=object)
 
@@ -559,7 +560,6 @@ def plot_DL_diagnostics(
     num = params['log_iter'].shape[0]
 
     # define colors for Frobenius norm and mean error
-    from matplotlib import colors
     m_color = 'forestgreen'
     m_area_color = 'azure'
 
@@ -977,9 +977,8 @@ def plot_DL_reconst_quality(
 
 
 def plot_interDX(
-        data, genes_positions_table, dxl, newDir, clean_params=None,
+        data, genes_positions_table, dxl, newDir, process_settings=None,
         saveimg=False, imgdir='./', figsize=(25, 5), heatmap_thres=None):
-    from prepare_data.process_data import reverse_preprocessing
 
     if heatmap_thres is None:
         heatmap_thres = abs(data).max().max()
@@ -1001,10 +1000,9 @@ def plot_interDX(
         title = 'reconstr. at '+l[0]
         recon_data = pd.DataFrame(
             np.dot(D, X), columns=data.columns, index=data.index)
-        if clean_params is not None:
-            raw_mean, raw_std, data_type = clean_params
-            recon_data = reverse_preprocessing(
-                recon_data, raw_mean, raw_std, data_type=data_type)
+        if process_settings is not None:
+            recon_data = reverse_processing(
+                recon_data, process_settings)
         h = plot_heatmap_custom(
             recon_data, figsize=figsize,
             vmin=None, vmax=None, xticklabels=False, yticklabels=False,

@@ -6,3 +6,4 @@ seaborn
 plac
 natsort
 networkx
+git+https://github.ibm.com/SysBio/TCGA-processing@1.0
