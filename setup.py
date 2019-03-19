@@ -130,7 +130,6 @@ setup(
         'custom functions for plots (matplotlib, seaborn)'
     ),
     long_description=open('README.md').read(),
-    url='https://github.ibm.com/LLE/plotting_utils',
     author='Elina Koletou',
     author_email='lle@zurich.ibm.com',
     packages=find_packages('.'),
